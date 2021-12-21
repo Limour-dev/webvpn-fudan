@@ -36,6 +36,11 @@ def getOrdinaryUrl(url):
 
         return pro + "://" + hostname + '/' + fold
 
+import time
+def getTimestamp(size = 1000):
+    t = time.time()
+    return int(round(t * size))
+
 from lxml import etree
 from requests import session
 
@@ -108,6 +113,21 @@ class WebVPN:
         headers['Cookies'] = self.cookie()
         url = getVPNUrl(url)
         return self.session.post(url, *arg, headers=headers, **kw)
+
+    def cookie_get(self, data, headers={}):
+        url = r'https://webvpn.fudan.edu.cn/wengine-vpn/cookie?' + data + f'&vpn_timestamp={getTimestamp()}' 
+        headers['Cookies'] = self.cookie()
+        return self.session.get(url, headers=headers)
+    
+    def proxy(self, proxy_url):
+        '''
+            格式为 http://user:password@host:port
+        '''
+        proxies = {
+            'http': proxy_url,
+            'https': proxy_url,
+        }
+        self.session.proxies.update(proxies)
 
 ##a = WebVPN('1930***', '***')
 ##print(a.login())
