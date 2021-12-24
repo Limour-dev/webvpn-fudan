@@ -165,21 +165,24 @@ class WebVPN:
         self.session.close()
         return ret    
 
-    def cookie(self, method:['get','post']='get', url='', host='', path='', scheme='https'):
+    def cookie(self, url='',  method:['get','post']='get', host='', path='', scheme='https'):
         if url:
             parts = url.split('://')
             scheme = parts[0]
             add = parts[1]
             hosts = add.split('/')
             host = hosts[0]
-            path = '/'.join(hosts[1:])
+            path = '/' + '/'.join(hosts[1:])
         qurl = r'https://webvpn.fudan.edu.cn/wengine-vpn/cookie?' + f'method={method}&host={host}&scheme={scheme}&path={path}&vpn_timestamp={getTimestamp()}' 
         headers = {
             "accept": "*/*",
             "accept-encoding": "gzip, deflate, br",
             "accept-language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7"
         }
-        return self.get(qurl, headers=headers)
+        c = self.get(qurl, headers=headers)
+        if c.ok and 'text' in c.headers['Content-Type']:
+            return c.text
+        return c
 
     def show(self, url):
         b = self.get(url)
@@ -195,7 +198,10 @@ def show(b):
     with open('nmb.txt','wb') as f:
         f.write(b.content)
 
-a = WebVPN()
-
-
-print(a.close())
+##a = WebVPN()
+##print(a.login('1930***', '***'))
+##b = a.get('https://uis.fudan.edu.cn/authserver/login?service=https%3A%2F%2Ftac.fudan.edu.cn%2Foauth2%2Fauthorize.act%3Fclient_id%3Ddfcf8459-6973-42d3-b9f1-3e283f18f0bb%26response_type%3Dcode%26state%3Dd90d7a1f02dc483f9fe8be6bbe9db8f6%26redirect_uri%3Dhttp%253A%252F%252Fce.fudan.edu.cn%252Fcallbackurl.aspx')
+##b = a.get('http://ce.fudan.edu.cn/API/Admin/DailyFeedback/FeedbackStudent.ashx?vpn-12-o1-ce.fudan.edu.cn&action=query&semester=2021-2022-1&searchName=&type=1&v=1640366108462&index=1&psize=15&orderby=&col=&ordertype=&order=')
+##print(a.cookie('http://ce.fudan.edu.cn/Admin/DailyFeedback/Student/DailyFeedbackList.aspx'))
+##show(b)
+##print(a.close())
