@@ -150,9 +150,6 @@ class AES(object):
     def encrypt(self, plaintext):
         'Encrypt a block of plain text using the AES block cipher.'
 
-        if len(plaintext) != 16:
-            raise ValueError('wrong block length')
-
         rounds = len(self._Ke) - 1
         (s1, s2, s3) = [1, 2, 3]
         a = [0, 0, 0, 0]
@@ -183,9 +180,6 @@ class AES(object):
 
     def decrypt(self, ciphertext):
         'Decrypt a block of cipher text using the AES block cipher.'
-
-        if len(ciphertext) != 16:
-            raise ValueError('wrong block length')
 
         rounds = len(self._Kd) - 1
         (s1, s2, s3) = [3, 2, 1]
@@ -299,6 +293,46 @@ class AESModeOfOperationCFB(AESSegmentModeOfOperation):
 
         return _bytes_to_string(decrypted)
 
+# CFB is a segment cipher
+
+def to_bufferable(binary):
+    if isinstance(binary, bytes):
+        return binary
+    return bytes(ord(b) for b in binary)
+
+def _segment_can_consume(self, size):
+    return self.segment_bytes * int(size // self.segment_bytes)
+
+# CFB can handle a non-segment-sized block at the end using the remaining cipherblock
+def _segment_final_encrypt(self, data):
+    faux_padding = (chr(0) * (self.segment_bytes - (len(data) % self.segment_bytes)))
+    padded = data + to_bufferable(faux_padding)
+    return self.encrypt(padded)[:len(data)]
+
+# CFB can handle a non-segment-sized block at the end using the remaining cipherblock
+def _segment_final_decrypt(self, data):
+    faux_padding = (chr(0) * (self.segment_bytes - (len(data) % self.segment_bytes)))
+    padded = data + to_bufferable(faux_padding)
+    return self.decrypt(padded)[:len(data)]
+
+AESSegmentModeOfOperation._can_consume = _segment_can_consume
+AESSegmentModeOfOperation._final_encrypt = _segment_final_encrypt
+AESSegmentModeOfOperation._final_decrypt = _segment_final_decrypt
+
+def split_to_data_blocks(byte_str, block_size=16):
+    length = len(byte_str)
+    j, y = divmod(length, block_size)
+    blocks = []
+    shenyu = j * block_size
+    for i in range(j):
+        start = i * block_size
+        end = (i + 1) * block_size
+        blocks.append(byte_str[start:end])
+    stext = byte_str[shenyu:]
+    if stext:
+        blocks.append(stext)
+    return blocks
+
 from binascii import hexlify, unhexlify
 
 def getCiphertext(plaintext, key, cfb_iv, size = 128):
@@ -307,18 +341,24 @@ def getCiphertext(plaintext, key, cfb_iv, size = 128):
     message = plaintext.encode('utf-8')
     
     cfb_cipher_encrypt = AESModeOfOperationCFB(key, cfb_iv, segment_size = size)       # Must include segment_size
-    
-    mid = cfb_cipher_encrypt.encrypt(message)
 
-    return hexlify(mid).decode()
+    blocks = split_to_data_blocks(message)
+    ciphertext = b''
+    for b in blocks:
+        ciphertext = ciphertext + cfb_cipher_encrypt._final_encrypt(b)
+
+    return hexlify(ciphertext).decode()
 
 def getPlaintext(ciphertext, key, cfb_iv, size = 128):
     '''From ciphertext hostname to plaintext'''
     message = unhexlify(ciphertext.encode('utf-8'))
     
     cfb_cipher_decrypt = AESModeOfOperationCFB(key, cfb_iv, segment_size = size)
+
+    blocks = split_to_data_blocks(message)
+    ptext = b""
+    for b in blocks:
+        ptext = ptext + cfb_cipher_decrypt._final_decrypt(b)
     
-    cfb_msg_decrypt = cfb_cipher_decrypt.decrypt(message).decode('utf-8')
-    
-    return cfb_msg_decrypt
+    return ptext.decode('utf-8')
 
